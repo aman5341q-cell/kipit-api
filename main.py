@@ -21,9 +21,9 @@ class VideoRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "online", "message": "Kipit Turbo Engine is running!"}
+    return {"status": "online", "message": "Kipit Universal Multi-Platform Engine is running!"}
 
-# ⚡ Turbo Speed yt-dlp Configuration
+# ⚡ Turbo Configuration for Fast Extraction
 TURBO_YDL_OPTS = {
     'format': 'best[ext=mp4]/best',
     'skip_download': True,
@@ -31,9 +31,9 @@ TURBO_YDL_OPTS = {
     'no_warnings': True,
     'noplaylist': True,
     'playlist_items': '1',
-    'check_formats': False,  # 🚀 Super Fast: Multiple formats check nahi karega
+    'check_formats': False,
     'cachedir': False,
-    'socket_timeout': 10,
+    'socket_timeout': 12,
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -44,25 +44,33 @@ TURBO_YDL_OPTS = {
 def get_video_link(request: VideoRequest):
     target_url = request.url.strip()
 
-    # ⚡ TikTok 0.3-Second Fast-Path
-    if "tiktok.com" in target_url:
+    # 🛡️ 1. Zero-Tolerance Policy Check: Block YouTube completely
+    lower_url = target_url.lower()
+    if "youtube.com" in lower_url or "youtu.be" in lower_url:
+        raise HTTPException(
+            status_code=400, 
+            detail="YouTube downloading is strictly not supported as per developer policies."
+        )
+
+    # ⚡ 2. Instant 300ms Fast-Path for TikTok (100% No-Watermark)
+    if "tiktok.com" in lower_url:
         try:
             api_url = f"https://www.tikwm.com/api/?url={urllib.parse.quote(target_url)}"
             req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=6) as response:
                 data = json.loads(response.read().decode())
                 if data.get("code") == 0 and data.get("data"):
                     d = data["data"]
                     return {
                         "status": "success",
                         "download_url": d.get("play"),
-                        "title": d.get("title", "TikTok Video"),
+                        "title": d.get("title", "TikTok Video (No Watermark)"),
                         "thumbnail": d.get("cover", "")
                     }
         except Exception:
-            pass
+            pass  # Fallback to general extractor if API busy
 
-    # 🚀 Turbo Engine for Instagram, Facebook, X & Others
+    # 🌐 3. Universal Engine for Instagram, Facebook, X, Pinterest, Reddit & 1000+ Platforms
     try:
         with yt_dlp.YoutubeDL(TURBO_YDL_OPTS) as ydl:
             info = ydl.extract_info(target_url, download=False)
@@ -70,9 +78,10 @@ def get_video_link(request: VideoRequest):
                 info = info['entries'][0]
 
             video_url = info.get('url')
-            title = info.get('title', 'Kipit Video')
+            title = info.get('title', 'Social Media Video')
             thumbnail = info.get('thumbnail', '')
 
+            # Extract best MP4 stream
             if not video_url and 'formats' in info:
                 for f in reversed(info['formats']):
                     if f.get('url') and (f.get('ext') == 'mp4' or 'mp4' in f.get('format', '')):
@@ -80,7 +89,7 @@ def get_video_link(request: VideoRequest):
                         break
 
             if not video_url:
-                raise HTTPException(status_code=400, detail="Video stream extract nahi ho paayi.")
+                raise HTTPException(status_code=400, detail="Video stream extract nahi ho paayi. Link public hai check karein.")
 
             return {
                 "status": "success",
